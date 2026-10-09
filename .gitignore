@@ -23,3 +23,7 @@ __MACOSX/
 .vscode/
 
 CLAUDE.md
+analyze_val.py
+
+# Throwaway experiment scripts (deleted after each test)
+scratch/

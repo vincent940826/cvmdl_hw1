@@ -4,6 +4,7 @@ import argparse
 import csv
 from pathlib import Path
 
+import torch
 from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parents[1]  # cvpdl_hw1/
@@ -24,6 +25,7 @@ def main():
     parser.add_argument("--split", choices=["val", "test"], required=True)
     parser.add_argument("--out", required=True, help="output csv path")
     parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--augment", action="store_true", help="test-time augmentation (flip + multi-scale)")
     args = parser.parse_args()
 
     model = YOLO(args.weights)
@@ -34,7 +36,9 @@ def main():
         # Low conf threshold keeps low-score boxes, which raises mAP.
         # The metric caps detections at 100 per image *per class* (pycocotools), not 100 per image,
         # so keep more than 100 boxes in total.
-        result = model.predict(path, imgsz=args.imgsz, conf=0.001, max_det=300, verbose=False)[0]
+        result = model.predict(
+            path, imgsz=args.imgsz, conf=0.001, max_det=300, augment=args.augment, verbose=False
+        )[0]
         rows.append([path.stem, to_prediction_string(result.boxes)])
 
     if args.split == "test":
@@ -48,6 +52,7 @@ def main():
         writer.writerow(["image_id", "PredictionString"])
         writer.writerows(rows)
     print(f"Wrote {len(rows)} rows to {args.out}")
+    print(f"Peak inference VRAM reserved: {torch.cuda.max_memory_reserved() / 1024**3:.2f} GB")
 
 
 if __name__ == "__main__":
