@@ -1,8 +1,8 @@
 #!/bin/bash
-# Full MVP pipeline: train -> predict val -> score val -> predict test.
+# Full pipeline: train -> predict val (TTA) -> score val -> predict test (TTA).
 # Submit from cvpdl_hw1/:  sbatch jobs/mvp.sbatch
 # Override defaults:       sbatch --export=ALL,NAME=smoke,EPOCHS=1 jobs/mvp.sbatch
-#                          sbatch --export=ALL,NAME=v2_imgsz1280,IMGSZ=1280,BATCH=4 jobs/mvp.sbatch
+#                          sbatch --export=ALL,NAME=v3_p2,MODEL=code/yolo11s-p2.yaml,IMGSZ=1280,BATCH=4,PRED_IMGSZ=1920 jobs/mvp.sbatch
 #SBATCH --account=MST113101
 #SBATCH --job-name=hw1-mvp
 #SBATCH --partition=dev
@@ -32,12 +32,14 @@ fi
 # Run from cvpdl_hw1/ so Ultralytics' cwd-relative downloads stay inside this folder.
 cd "$SLURM_SUBMIT_DIR"
 NAME=${NAME:-mvp}
+MODEL=${MODEL:-weights/yolo11s.pt}
 EPOCHS=${EPOCHS:-50}
 IMGSZ=${IMGSZ:-640}
 BATCH=${BATCH:-16}
+PRED_IMGSZ=${PRED_IMGSZ:-$IMGSZ}
 RUN=runs/$NAME
 
-python code/train.py --name "$NAME" --epochs "$EPOCHS" --imgsz "$IMGSZ" --batch "$BATCH"
-python code/predict.py --weights "$RUN/weights/best.pt" --split val --imgsz "$IMGSZ" --out "$RUN/val_pred.csv"
+python code/train.py --name "$NAME" --model "$MODEL" --epochs "$EPOCHS" --imgsz "$IMGSZ" --batch "$BATCH"
+python code/predict.py --weights "$RUN/weights/best.pt" --split val --imgsz "$PRED_IMGSZ" --augment --out "$RUN/val_pred.csv"
 python code/eval_val.py --csv "$RUN/val_pred.csv"
-python code/predict.py --weights "$RUN/weights/best.pt" --split test --imgsz "$IMGSZ" --out "$RUN/submission_test.csv"
+python code/predict.py --weights "$RUN/weights/best.pt" --split test --imgsz "$PRED_IMGSZ" --augment --out "$RUN/submission_test.csv"
