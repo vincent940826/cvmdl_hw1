@@ -26,6 +26,8 @@ def main():
     parser.add_argument("--out", required=True, help="output csv path")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--augment", action="store_true", help="test-time augmentation (flip + multi-scale)")
+    parser.add_argument("--max-det", type=int, default=300, help="max boxes kept per image after NMS")
+    parser.add_argument("--iou", type=float, default=0.7, help="NMS IoU threshold")
     args = parser.parse_args()
 
     model = YOLO(args.weights)
@@ -37,7 +39,8 @@ def main():
         # The metric caps detections at 100 per image *per class* (pycocotools), not 100 per image,
         # so keep more than 100 boxes in total.
         result = model.predict(
-            path, imgsz=args.imgsz, conf=0.001, max_det=300, augment=args.augment, verbose=False
+            path, imgsz=args.imgsz, conf=0.001, max_det=args.max_det, iou=args.iou, augment=args.augment,
+            verbose=False,
         )[0]
         rows.append([path.stem, to_prediction_string(result.boxes)])
 
