@@ -1,0 +1,25 @@
+# Dataset: distributed by the course, must not be uploaded (also ~1.7 GB)
+dataset/
+
+# Training outputs: checkpoints, predictions, plots (large, reproducible from code)
+runs/
+weights/
+*.pt
+
+# Slurm logs
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Ultralytics label caches
+*.cache
+
+# OS / editor
+.DS_Store
+__MACOSX/
+.vscode/
+
+CLAUDE.md
