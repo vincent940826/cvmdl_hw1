@@ -1,7 +1,7 @@
 #!/bin/bash
 # One ensemble member: train -> predict val and test at 3 image sizes (TTA) -> score val.
-# Submit from cvpdl_hw1/:  sbatch jobs/mvp.sbatch
-# Override defaults:       sbatch --export=ALL,NAME=yolo11m_1600,MODEL=weights/yolo11m.pt,EPOCHS=100,IMGSZ=1600,BATCH=2 jobs/mvp.sbatch
+# Submit from the project root (mkdir -p logs first):  sbatch code/mvp.sbatch
+# Override defaults:       sbatch --export=ALL,NAME=yolo11m_1600,MODEL=weights/yolo11m.pt,EPOCHS=100,IMGSZ=1600,BATCH=2 code/mvp.sbatch
 #SBATCH --account=MST113101
 #SBATCH --job-name=hw1-mvp
 #SBATCH --partition=dev

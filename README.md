@@ -2,7 +2,7 @@
 
 Detect 10 kinds of objects (pedestrian, car, bus, ...) in drone images.
 
-This file explains how to make `submission_test.csv` again.
+This file explains how to make `submission_test.csv` again from scratch.
 
 | Result | mAP50:95 |
 |---|---|
@@ -43,8 +43,7 @@ We train **4 YOLO models** and combine their boxes.
 | `code/ensemble.py` | Merge many csvs into one csv (WBF) |
 | `code/eval_val.py` | Score a val csv (same metric as Kaggle) |
 | `code/visualize.py` | Draw boxes on images (report Q3) |
-| `jobs/mvp.sbatch` | Slurm script for our GPU cluster: train + predict one model |
-| `weights/final/` | Our 4 trained models (173 MB), used in section 4 |
+| `code/mvp.sbatch` | Optional Slurm script: train + predict one model |
 
 All csvs use the Kaggle format: `image_id,PredictionString`, and each box is
 `class_id confidence x_min y_min width height` in pixels.
@@ -66,7 +65,7 @@ Install torch **first**. Otherwise `ultralytics` installs a different torch buil
 
 ### 3.2 Dataset
 
-Put the course dataset in `dataset/` like this:
+Put the course dataset in `dataset/`, next to `code/`:
 
 ```
 dataset/
@@ -81,7 +80,7 @@ dataset/
 > The course zip unpacks to `dataset/dataset/...` and also has `__MACOSX/` and `.DS_Store` files.
 > Move the inner folders up one level and delete those extra files.
 
-**Run every command from this folder** (the one with `README.md`).
+**Run every command from this folder** (the one that has `code/` and `dataset/`).
 
 ### 3.3 GPU
 
@@ -91,20 +90,26 @@ training peaks at 10.8 GB, prediction peaks at 10.9 GB (`yolo12m_1280` at size 2
 
 ---
 
-## 4. Reproduce `submission_test.csv` with our trained weights (fast, about 40 min)
+## 4. Reproduce `submission_test.csv` (about 11 GPU hours)
 
-**Step 1. Check that the 4 trained models are there.** They come with this homework:
+**Step 1. Train the 4 models.** The COCO weights download by themselves on the first run
+(internet needed). Each run saves its best epoch to `runs/<name>/weights/best.pt`.
 
 ```bash
-ls weights/final   # yolo11l_1280.pt  yolo11m_1280.pt  yolo11m_1600.pt  yolo12m_1280.pt
+python code/train.py --name yolo11m_1280 --model weights/yolo11m.pt --imgsz 1280 --batch 4 --epochs 50   # ~1 h
+python code/train.py --name yolo11m_1600 --model weights/yolo11m.pt --imgsz 1600 --batch 2 --epochs 100  # ~3 h
+python code/train.py --name yolo11l_1280 --model weights/yolo11l.pt --imgsz 1280 --batch 2 --epochs 100  # ~4 h
+python code/train.py --name yolo12m_1280 --model weights/yolo12m.pt --imgsz 1280 --batch 2 --epochs 70   # ~3 h
 ```
 
-**Step 2. Predict the test images** (4 models × 3 image sizes = 12 csvs):
+(Times are for one H100 / H200.)
+
+**Step 2. Predict the test images** (4 models × 3 image sizes = 12 csvs, about 30 min):
 
 ```bash
 for m in yolo11m_1280 yolo11m_1600 yolo11l_1280 yolo12m_1280; do
     for s in 1920 2240 2880; do
-        python code/predict.py --weights weights/final/$m.pt --split test --imgsz $s --out runs/$m/test_pred_$s.csv
+        python code/predict.py --weights runs/$m/weights/best.pt --split test --imgsz $s --out runs/$m/test_pred_$s.csv
     done
 done
 ```
@@ -116,59 +121,43 @@ python code/ensemble.py --split test --out submission_test.csv \
     --csvs runs/{yolo11m_1280,yolo11m_1600,yolo11l_1280,yolo12m_1280}/test_pred_{1920,2240,2880}.csv
 ```
 
-Keep the csv order shown above. The result should be the same as our `submission_test.csv`
-(a different GPU may change a few low-score boxes).
+Keep the csv order shown above. GPU training is not fully deterministic,
+so the new file can differ a little from ours, but the score should be very close.
 
----
+### Optional: Slurm
 
-## 5. Train from scratch (slow, about 11 GPU hours)
-
-The COCO weights download by themselves on the first run (internet needed).
-
-**Step 1. Train the 4 models.** Each run saves its best epoch to `runs/<name>/weights/best.pt`.
+On a Slurm cluster, `code/mvp.sbatch` does step 1 and step 2 for one model (and also predicts and scores val):
 
 ```bash
-python code/train.py --name yolo11m_1280 --model weights/yolo11m.pt --imgsz 1280 --batch 4 --epochs 50   # ~1 h
-python code/train.py --name yolo11m_1600 --model weights/yolo11m.pt --imgsz 1600 --batch 2 --epochs 100  # ~3 h
-python code/train.py --name yolo11l_1280 --model weights/yolo11l.pt --imgsz 1280 --batch 2 --epochs 100  # ~4 h
-python code/train.py --name yolo12m_1280 --model weights/yolo12m.pt --imgsz 1280 --batch 2 --epochs 70   # ~3 h
-```
-
-(Times are for one H100 / H200.)
-
-**Step 2.** Do steps 2 and 3 of section 4, but use `--weights runs/$m/weights/best.pt`.
-
-On a Slurm cluster, `jobs/mvp.sbatch` does step 1 and step 2 for one model, for example:
-
-```bash
+mkdir -p logs
 sbatch --partition=<partition> --time=10:00:00 \
-    --export=ALL,NAME=yolo11m_1600,MODEL=weights/yolo11m.pt,EPOCHS=100,IMGSZ=1600,BATCH=2 jobs/mvp.sbatch
+    --export=ALL,NAME=yolo11m_1600,MODEL=weights/yolo11m.pt,EPOCHS=100,IMGSZ=1600,BATCH=2 code/mvp.sbatch
 ```
 
-(The script has our account name and module names. Change them for your cluster.)
+The script has our account name and module names. Change them for your cluster.
 
 ---
 
-## 6. Check the score on val
+## 5. Check the score on val
 
 Make val csvs the same way (`--split val`), merge them, then score:
 
 ```bash
 for m in yolo11m_1280 yolo11m_1600 yolo11l_1280 yolo12m_1280; do
     for s in 1920 2240 2880; do
-        python code/predict.py --weights weights/final/$m.pt --split val --imgsz $s --out runs/$m/val_pred_$s.csv
+        python code/predict.py --weights runs/$m/weights/best.pt --split val --imgsz $s --out runs/$m/val_pred_$s.csv
     done
 done
 python code/ensemble.py --split val --out runs/val_ensemble.csv \
     --csvs runs/{yolo11m_1280,yolo11m_1600,yolo11l_1280,yolo12m_1280}/val_pred_{1920,2240,2880}.csv
-python code/eval_val.py --csv runs/val_ensemble.csv   # mAP50:95 = 0.4105
+python code/eval_val.py --csv runs/val_ensemble.csv   # ours: mAP50:95 = 0.4105
 ```
 
-Single models on val (size 2240 only): 0.3536, 0.3711, 0.3644 and 0.3628 (same order as the table in section 1).
+Our single models on val (size 2240 only): 0.3536, 0.3711, 0.3644 and 0.3628 (same order as the table in section 1).
 
 ---
 
-## 7. Draw boxes (report Q3)
+## 6. Draw boxes (report Q3)
 
 ```bash
 python code/visualize.py --csv submission_test.csv
