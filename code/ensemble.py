@@ -10,6 +10,10 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]  # cvpdl_hw1/
 DATASET = ROOT / "dataset"
+# Chosen on val: boxes of one class overlapping more than IOU are fused (above the per-model NMS IoU 0.7,
+# so neighbouring objects stay separate); all inputs weighted equally; MAX_DET as in predict.py.
+IOU = 0.75
+MAX_DET = 600
 
 
 def read_predictions(path):
@@ -23,7 +27,7 @@ def read_predictions(path):
         }
 
 
-def fuse(dets_per_model, width, height, args):
+def fuse(dets_per_model, width, height):
     """Fuse one image's detections from all models. Returns [M, 6] (class, conf, x_min, y_min, width, height)."""
     scale = np.array([width, height, width, height])
     boxes, scores, labels = [], [], []
@@ -33,12 +37,9 @@ def fuse(dets_per_model, width, height, args):
         boxes.append(np.clip(xyxy / scale, 0, 1))  # WBF expects (x1, y1, x2, y2) normalized to [0, 1]
         scores.append(dets[:, 1])
         labels.append(dets[:, 0])
-    boxes, scores, labels = weighted_boxes_fusion(
-        boxes, scores, labels, weights=args.weights, iou_thr=args.iou,
-        skip_box_thr=args.skip_box_thr, conf_type=args.conf_type,
-    )
+    boxes, scores, labels = weighted_boxes_fusion(boxes, scores, labels, iou_thr=IOU)
     # WBF returns boxes sorted by fused confidence, highest first
-    boxes, scores, labels = boxes[:args.max_det] * scale, scores[:args.max_det], labels[:args.max_det]
+    boxes, scores, labels = boxes[:MAX_DET] * scale, scores[:MAX_DET], labels[:MAX_DET]
     return np.column_stack([labels, scores, boxes[:, :2], boxes[:, 2:] - boxes[:, :2]])
 
 
@@ -50,17 +51,10 @@ def to_prediction_string(dets):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csvs", nargs="+", required=True, help="prediction csvs of one split, one per model")
-    parser.add_argument("--weights", nargs="+", type=float, help="one weight per csv (default: all equal)")
+    parser.add_argument("--csvs", nargs="+", required=True, help="prediction csvs of one split (models x image sizes)")
     parser.add_argument("--split", choices=["val", "test"], required=True)
     parser.add_argument("--out", required=True, help="output csv path")
-    parser.add_argument("--iou", type=float, default=0.55, help="boxes of one class overlapping more than this are fused")
-    parser.add_argument("--conf-type", default="avg", choices=["avg", "max", "box_and_model_avg", "absent_model_aware_avg"],
-                        help="how fused confidences are computed (see ensemble_boxes)")
-    parser.add_argument("--skip-box-thr", type=float, default=0.0, help="ignore input boxes below this confidence")
-    parser.add_argument("--max-det", type=int, default=600, help="max boxes kept per image after fusion")
     args = parser.parse_args()
-    assert args.weights is None or len(args.weights) == len(args.csvs), "need one weight per csv"
 
     preds = [read_predictions(p) for p in args.csvs]
     image_ids = sorted(preds[0])
@@ -74,7 +68,7 @@ def main():
     for image_id in image_ids:
         with Image.open(DATASET / "images" / args.split / f"{image_id}.jpg") as im:
             width, height = im.size
-        dets = fuse([p[image_id] for p in preds], width, height, args)
+        dets = fuse([p[image_id] for p in preds], width, height)
         rows.append([image_id, to_prediction_string(dets)])
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

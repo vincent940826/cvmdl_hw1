@@ -1,8 +1,7 @@
 #!/bin/bash
-# Full pipeline: train -> predict val (TTA) -> score val -> predict test (TTA).
+# One ensemble member: train -> predict val and test at 3 image sizes (TTA) -> score val.
 # Submit from cvpdl_hw1/:  sbatch jobs/mvp.sbatch
-# Override defaults:       sbatch --export=ALL,NAME=smoke,EPOCHS=1 jobs/mvp.sbatch
-#                          sbatch --export=ALL,NAME=v3_p2,MODEL=code/yolo11s-p2.yaml,IMGSZ=1280,BATCH=4,PRED_IMGSZ=1920 jobs/mvp.sbatch
+# Override defaults:       sbatch --export=ALL,NAME=yolo11m_1600,MODEL=weights/yolo11m.pt,EPOCHS=100,IMGSZ=1600,BATCH=2 jobs/mvp.sbatch
 #SBATCH --account=MST113101
 #SBATCH --job-name=hw1-mvp
 #SBATCH --partition=dev
@@ -36,10 +35,11 @@ MODEL=${MODEL:-weights/yolo11s.pt}
 EPOCHS=${EPOCHS:-50}
 IMGSZ=${IMGSZ:-640}
 BATCH=${BATCH:-16}
-PRED_IMGSZ=${PRED_IMGSZ:-$IMGSZ}
 RUN=runs/$NAME
 
 python code/train.py --name "$NAME" --model "$MODEL" --epochs "$EPOCHS" --imgsz "$IMGSZ" --batch "$BATCH"
-python code/predict.py --weights "$RUN/weights/best.pt" --split val --imgsz "$PRED_IMGSZ" --augment --out "$RUN/val_pred.csv"
-python code/eval_val.py --csv "$RUN/val_pred.csv"
-python code/predict.py --weights "$RUN/weights/best.pt" --split test --imgsz "$PRED_IMGSZ" --augment --out "$RUN/submission_test.csv"
+for SIZE in 1920 2240 2880; do  # multi-scale inference: ensemble.py fuses all sizes of all members
+    python code/predict.py --weights "$RUN/weights/best.pt" --split val --imgsz "$SIZE" --out "$RUN/val_pred_$SIZE.csv"
+    python code/eval_val.py --csv "$RUN/val_pred_$SIZE.csv"
+    python code/predict.py --weights "$RUN/weights/best.pt" --split test --imgsz "$SIZE" --out "$RUN/test_pred_$SIZE.csv"
+done

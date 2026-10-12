@@ -9,6 +9,9 @@ from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parents[1]  # cvpdl_hw1/
 DATASET = ROOT / "dataset"
+# The metric caps detections at 100 per image *per class* (pycocotools), not 100 per image,
+# so keep more than 100 boxes in total. 600 was the best max_det on val (1000 gained < 0.001).
+MAX_DET = 600
 
 
 def to_prediction_string(boxes):
@@ -24,10 +27,7 @@ def main():
     parser.add_argument("--weights", required=True)
     parser.add_argument("--split", choices=["val", "test"], required=True)
     parser.add_argument("--out", required=True, help="output csv path")
-    parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--augment", action="store_true", help="test-time augmentation (flip + multi-scale)")
-    parser.add_argument("--max-det", type=int, default=300, help="max boxes kept per image after NMS")
-    parser.add_argument("--iou", type=float, default=0.7, help="NMS IoU threshold")
+    parser.add_argument("--imgsz", type=int, default=2240)
     args = parser.parse_args()
 
     model = YOLO(args.weights)
@@ -35,12 +35,10 @@ def main():
 
     rows = []
     for path in image_paths:
-        # Low conf threshold keeps low-score boxes, which raises mAP.
-        # The metric caps detections at 100 per image *per class* (pycocotools), not 100 per image,
-        # so keep more than 100 boxes in total.
+        # Low conf threshold keeps low-score boxes, which raises mAP. augment=True is test-time augmentation
+        # (flip + down-scaled passes). iou is the NMS threshold (Ultralytics default).
         result = model.predict(
-            path, imgsz=args.imgsz, conf=0.001, max_det=args.max_det, iou=args.iou, augment=args.augment,
-            verbose=False,
+            path, imgsz=args.imgsz, conf=0.001, iou=0.7, max_det=MAX_DET, augment=True, verbose=False
         )[0]
         rows.append([path.stem, to_prediction_string(result.boxes)])
 

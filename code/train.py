@@ -24,10 +24,7 @@ def write_data_yaml(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", default="mvp", help="run name, outputs go to runs/<name>/")
-    parser.add_argument("--model", default="weights/yolo11s.pt",
-                        help="COCO-pretrained .pt, or an architecture .yaml (paths relative to cvpdl_hw1/)")
-    parser.add_argument("--pretrained", default="weights/yolo11s.pt",
-                        help="for a .yaml model: COCO-pretrained weights copied into layers with matching shapes")
+    parser.add_argument("--model", default="weights/yolo11s.pt", help="COCO-pretrained weights, relative to cvpdl_hw1/")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
@@ -40,9 +37,7 @@ def main():
     data_yaml = ROOT / "runs" / args.name / "data.yaml"
     write_data_yaml(data_yaml)
 
-    model = YOLO(ROOT / args.model)
-    if args.model.endswith(".yaml"):  # new architecture: start from COCO weights wherever layers match
-        model.load(ROOT / args.pretrained)
+    model = YOLO(ROOT / args.model)  # downloaded on first use
     model.train(
         data=str(data_yaml),
         epochs=args.epochs,
