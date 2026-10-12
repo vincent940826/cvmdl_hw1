@@ -44,6 +44,7 @@ We train **4 YOLO models** and combine their boxes.
 | `code/eval_val.py` | Score a val csv (same metric as Kaggle) |
 | `code/visualize.py` | Draw boxes on images (report Q3) |
 | `jobs/mvp.sbatch` | Slurm script for our GPU cluster: train + predict one model |
+| `weights/final/` | Our 4 trained models (173 MB), used in section 4 |
 
 All csvs use the Kaggle format: `image_id,PredictionString`, and each box is
 `class_id confidence x_min y_min width height` in pixels.
@@ -58,7 +59,7 @@ All csvs use the Kaggle format: `image_id,PredictionString`, and each box is
 conda create -n cvpdl python=3.11 -y
 conda activate cvpdl
 pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu126
-pip install ultralytics==8.4.173 torchmetrics==1.9.0 pycocotools==2.0.11 ensemble-boxes==1.0.9 gdown
+pip install ultralytics==8.4.173 torchmetrics==1.9.0 pycocotools==2.0.11 ensemble-boxes==1.0.9
 ```
 
 Install torch **first**. Otherwise `ultralytics` installs a different torch build.
@@ -80,7 +81,7 @@ dataset/
 > The course zip unpacks to `dataset/dataset/...` and also has `__MACOSX/` and `.DS_Store` files.
 > Move the inner folders up one level and delete those extra files.
 
-**Run every command from this folder** (the one with `Readme.md`).
+**Run every command from this folder** (the one with `README.md`).
 
 ### 3.3 GPU
 
@@ -92,10 +93,9 @@ training peaks at 10.8 GB, prediction peaks at 10.9 GB (`yolo12m_1280` at size 2
 
 ## 4. Reproduce `submission_test.csv` with our trained weights (fast, about 40 min)
 
-**Step 1. Download the 4 trained models** (173 MB) into `weights/final/`:
+**Step 1. Check that the 4 trained models are there.** They come with this homework:
 
 ```bash
-gdown --folder <GOOGLE_DRIVE_LINK> -O weights/final
 ls weights/final   # yolo11l_1280.pt  yolo11m_1280.pt  yolo11m_1600.pt  yolo12m_1280.pt
 ```
 
